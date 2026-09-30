@@ -100,8 +100,29 @@ async function seed() {
             name: 'Smash Original',
             description: 'Carne smash, queso americano, salsa especial',
             price: 5200,
-            categorie_id: 'Hamburguesas',
+            categorie_id: 'Simples',
             IMG: 'https://images.unsplash.com/photo-1607013251379-e6eecfffe234?w=400&h=300&fit=crop&auto=format',
+        },
+        {
+            name: 'Pancho Clásico',
+            description: 'Salchicha, papas pay, salsas a elección',
+            price: 3200,
+            categorie_id: 'Panchos',
+            IMG: 'https://images.unsplash.com/photo-1612392061787-2d078b3e573b?w=400&h=300&fit=crop&auto=format',
+        },
+        {
+            name: 'Papas Cheddar y Bacon',
+            description: 'Papas fritas, cheddar fundido, bacon crocante',
+            price: 4100,
+            categorie_id: 'Papas Fritas',
+            IMG: 'https://images.unsplash.com/photo-1585109649139-366815a0d713?w=400&h=300&fit=crop&auto=format',
+        },
+        {
+            name: 'Nuggets x8',
+            description: '8 nuggets de pollo crocantes con salsa a elección',
+            price: 3900,
+            categorie_id: 'Nuggets',
+            IMG: 'https://images.unsplash.com/photo-1562967914-608f82629710?w=400&h=300&fit=crop&auto=format',
         },
     ]);
     const [clasica, dobleBacon, veggie, triple, bbq, clasicaCheddar, portobello, smash] = products;
@@ -138,7 +159,7 @@ async function seed() {
         { user: userSnapshot(lucas), menu: menu6, total: total(menu6), state: 'realizado' },
     ]);
 
-    console.log('Seed completo: 4 usuarios, 8 productos, 6 pedidos');
+    console.log('Seed completo: 4 usuarios, 11 productos, 6 pedidos');
     console.log('Login admin       -> admin@bigburger.com / admin123');
     console.log('Login demo        -> demo@bigburger.com / demo1234');
     console.log('Login martina     -> martina@bigburger.com / demo1234');

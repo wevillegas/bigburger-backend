@@ -2,11 +2,13 @@ var mongoose = require("mongoose")
 var Schema = mongoose.Schema
 
 var Categories = [
-    "Hamburguesas",
     "Simples",
     "Dobles",
     "Triples",
     "Vegetarianas",
+    "Panchos",
+    "Papas Fritas",
+    "Nuggets",
 ]
 
 var ProductSchema = new Schema ({
@@ -36,7 +38,7 @@ var ProductSchema = new Schema ({
     categorie_id: {
         type: String,
         enum: Categories,
-        default: "Hamburguesas",
+        default: "Simples",
         required: true,
     },
 
