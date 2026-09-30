@@ -3,29 +3,30 @@ const bcrypt = require('bcrypt');
 const salt = 10;
 const jwt = require('jsonwebtoken');
 const secret = require('../config/config').secret;
+const { pickAllowedFields } = require('../utils/sanitize');
 
 
+const ALLOWED_SIGNUP_FIELDS = ['fullName', 'email', 'password']
+const ALLOWED_UPDATE_FIELDS = ['fullName', 'email', 'active', 'role', 'phone', 'address']
+const ALLOWED_PROFILE_FIELDS = ['fullName', 'phone', 'address']
+
+// registro público: solo nombre/email/contraseña. El rol nunca sale del body
+// (si no, cualquiera podría autoasignarse ADMINISTRADOR en el signup) y queda en el default del schema.
+// el resto de los campos (maxlength, formato) los valida el schema al guardar
 async function addUser(req, res){
-    try{
-        if(!req.body.password || !req.body.fullName || !req.body.email ){ 
-            return res.status(400).send('falta un campo obligatorio');
-        }
-        //Encriptamos la contraseña
-        req.body.password = await bcrypt.hash(req.body.password, salt);
+    if(!req.body.password) return res.status(400).send({message:'falta la contraseña'});
 
+    const userData = pickAllowedFields(req.body, ALLOWED_SIGNUP_FIELDS)
+    userData.password = await bcrypt.hash(userData.password, salt);
 
-        let newUser = new User(req.body);
-        await newUser.save()// Guardamos en la BD
-        res.send({ usuarioNuevo: newUser })
-    } catch(error){
-
-        res.status(400).send('error')
-
-    }
+    let newUser = new User(userData);
+    await newUser.save()// Guardamos en la BD
+    newUser.password = undefined;
+    res.send({ usuarioNuevo: newUser })
 }
 
 async function getUsers(req, res){
-    const usuariosDB = await User.find()
+    const usuariosDB = await User.find().select('-password')
     res.send({ users: usuariosDB })
 }
 
@@ -33,7 +34,7 @@ async function getUser(req, res){
     //id que recibimos desde el endpoint
     const userId = req.query.user_id;
     //buscamos ese Id en nuestra BD
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select('-password');
     console.log(user)
     // si no encontramos el usuario
     if(!user) return res.status(404).send ('no se encontro el usuario que busca');
@@ -45,61 +46,69 @@ async function deleteUser(req, res){
     
     const user_deleted = req.params.id;
 
-    const user = await User.findByIdAndDelete(user_deleted);
-    console.log(user);
-    
+    const user = await User.findByIdAndDelete(user_deleted).select('-password');
+
     res.send({ userDeleted: user });
 }
 
 //UPADATE USER
+// solo campos en la whitelist (nunca "password" por acá: no pasa por bcrypt y rompería el login)
 async function updateUser(req, res) {
     const id = req.params.id;
 
-    const userChangesToApply = req.body;
+    const userChangesToApply = pickAllowedFields(req.body, ALLOWED_UPDATE_FIELDS)
 
-    const updatedUser = await User.findByIdAndUpdate(id, userChangesToApply, { new: true });
+    const updatedUser = await User.findByIdAndUpdate(id, userChangesToApply, {
+        new: true,
+        runValidators: true,
+        context: 'query'
+    }).select('-password');
     if(!updatedUser) return res.status(404).send('No se encontro el usuario');
-    
+
+    return res.status(200).send(updatedUser)
+}
+
+// edita los propios datos (nombre/teléfono/dirección) — nunca email/rol/password desde acá.
+// usa siempre req.user._id, nunca un id que venga del body, para que nadie edite el perfil de otro
+async function updateOwnProfile(req, res) {
+    const changes = pickAllowedFields(req.body, ALLOWED_PROFILE_FIELDS)
+
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, changes, {
+        new: true,
+        runValidators: true,
+        context: 'query'
+    }).select('-password');
+    if (!updatedUser) return res.status(404).send('No se encontro el usuario');
+
     return res.status(200).send(updatedUser)
 }
 
 //LOGIN
 async function login (req, res){
-    try{
-        const email = req.body.email;
-        const password = req.body.password;
+    const email = req.body.email;
+    const password = req.body.password;
 
 //checkeamos que el usuario exista y nos traemos sus datos
-        const userDB = await User.findOne({ email: req.body.email });
+    const userDB = await User.findOne({ email: req.body.email });
 
-
-        if(!userDB) return res.status(404).send({ msg:'El suario no existe en nuestra BD' });
-
+    if(!userDB) return res.status(404).send({ msg:'El suario no existe en nuestra BD' });
 
 //comparamos password proveniente del front con el password del usuario
-        const isValidPassword = await bcrypt.compare(password, userDB.password);
-        if(!isValidPassword) return res.status(401).send({ msg:'Alguno de los datos ingresados no es correcto' });
-        
+    const isValidPassword = await bcrypt.compare(password, userDB.password);
+    if(!isValidPassword) return res.status(401).send({ msg:'Alguno de los datos ingresados no es correcto' });
 
 //elimino del objeto user el password
-        userDB.password = undefined;
-        console.log(userDB);
-
+    userDB.password = undefined;
 
 //generamos un token de acceso
-        const token = jwt.sign(userDB.toJSON(), secret);
+    const token = jwt.sign(userDB.toJSON(), secret, { expiresIn: '7d' });
 
-
-        return res.status(200).send({
-            ok: true,
-            msg:'Login correcto',
-            user: userDB,
-            token
-        })
-
-    } catch(error){
-        res.status(400).send(error)
-    }
+    return res.status(200).send({
+        ok: true,
+        msg:'Login correcto',
+        user: userDB,
+        token
+    })
 }
 
 
@@ -109,5 +118,6 @@ module.exports = {
     getUser,
     deleteUser,
     login,
-    updateUser
+    updateUser,
+    updateOwnProfile
 }

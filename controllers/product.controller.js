@@ -1,20 +1,16 @@
 var Product = require('../schemas/products.schema')
+const { pickAllowedFields } = require('../utils/sanitize')
+
+const ALLOWED_FIELDS = ['name', 'description', 'price', 'stock', 'categorie_id', 'IMG']
 
 // Agregar menú
+// la validación de campos obligatorios/tipos/límites la hace el schema de Mongoose al guardar
 async function addProducts(req, res){
-    try{
-        if(!req.body.name || !req.body.price || !req.body.description){
-            return res.status(400).send({message:"Falta un campo obligatorio"})
-        }
-        
-        let newProduct = new Product(req.body)
-        await newProduct.save()
-        res.send({
-            nuevoProducto: newProduct
-        })
-    } catch(err){
-        res.status(404).send(err)
-    }
+    let newProduct = new Product(req.body)
+    await newProduct.save()
+    res.send({
+        nuevoProducto: newProduct
+    })
 }
 
 
@@ -69,17 +65,16 @@ async function deleteProduct(req, res) {
 
 
 // funcion para editar menú
+// solo se aplican los campos permitidos (evita que el body inyecte campos no previstos por el schema)
 async function updateProduct (req, res){
     const id = req.query.updateId
-    const updatedAt = new Date()
 
-    const productChanges = {
-        ...req.body,
-        updatedAt: updatedAt
-    }
+    const productChanges = { ...pickAllowedFields(req.body, ALLOWED_FIELDS), updatedAt: new Date() }
 
     const updatedProduct = await Product.findByIdAndUpdate(id, productChanges, {
-        new: true
+        new: true,
+        runValidators: true,
+        context: 'query'
     })
 
     if (!updatedProduct) return res.status(404).send({message: "El producto a modificar no fue encontrado"})

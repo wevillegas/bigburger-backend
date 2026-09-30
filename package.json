@@ -4,7 +4,7 @@
   "description": "backend proyecto final RC",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test",
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node seed.js"
@@ -16,6 +16,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.0.1",
     "express": "^4.17.3",
+    "express-rate-limit": "^8.7.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^8.5.1",
     "mongoose": "^6.2.10"
   },
