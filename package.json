@@ -4,7 +4,7 @@
   "description": "backend proyecto final RC",
   "main": "index.js",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "start": "node index.js",
     "dev": "nodemon index.js",
     "seed": "node seed.js"

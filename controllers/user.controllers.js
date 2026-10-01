@@ -83,6 +83,30 @@ async function updateOwnProfile(req, res) {
     return res.status(200).send(updatedUser)
 }
 
+// cambio de contraseña propio: exige la contraseña actual para confirmar identidad,
+// nunca se puede cambiar la de otro usuario (siempre usa req.user._id)
+async function changeOwnPassword(req, res) {
+    const { currentPassword, newPassword } = req.body
+
+    if (!currentPassword || !newPassword) {
+        return res.status(400).send({ message: 'Ingresá tu contraseña actual y la nueva' })
+    }
+    if (newPassword.length < 8) {
+        return res.status(400).send({ message: 'La nueva contraseña debe tener 8 o más caracteres' })
+    }
+
+    const userDB = await User.findById(req.user._id)
+    if (!userDB) return res.status(404).send({ message: 'No se encontro el usuario' })
+
+    const isValidPassword = await bcrypt.compare(currentPassword, userDB.password)
+    if (!isValidPassword) return res.status(401).send({ message: 'La contraseña actual no es correcta' })
+
+    userDB.password = await bcrypt.hash(newPassword, salt)
+    await userDB.save()
+
+    return res.status(200).send({ ok: true, message: 'Contraseña actualizada correctamente' })
+}
+
 //LOGIN
 async function login (req, res){
     const email = req.body.email;
@@ -119,5 +143,6 @@ module.exports = {
     deleteUser,
     login,
     updateUser,
-    updateOwnProfile
+    updateOwnProfile,
+    changeOwnPassword
 }

@@ -19,6 +19,8 @@ api.delete('/user/:id', [checkAuthentication, isAdmin], asyncHandler(userControl
 // va antes que "/user/:id" — si no, Express tomaría "me" como un id y lo mandaría al endpoint de admin
 api.put('/user/me', checkAuthentication, asyncHandler(userController.updateOwnProfile));
 
+api.put('/user/me/password', checkAuthentication, asyncHandler(userController.changeOwnPassword));
+
 // editar (rol/estado/datos) de un usuario es una operación de administrador
 api.put('/user/:id', [checkAuthentication, isAdmin], asyncHandler(userController.updateUser));
 
