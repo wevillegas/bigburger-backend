@@ -31,9 +31,12 @@ var ProductSchema = new Schema ({
         max: 10000,
 
     },
+    // unidades disponibles (0 = sin stock); cada pedido las descuenta de forma atómica
     stock: {
-        type: Boolean,
-        default: true,
+        type: Number,
+        min: 0,
+        default: 100,
+        validate: { validator: Number.isInteger, message: 'El stock debe ser un número entero' },
     },
     categorie_id: {
         type: String,
@@ -48,7 +51,7 @@ var ProductSchema = new Schema ({
         default: "unknow",
     },
 
-    cretatedAt: {
+    createdAt: {
         type: Date,
         required: true,
         default: Date.now,

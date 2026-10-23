@@ -55,3 +55,23 @@ GitHub Actions (`.github/workflows/ci.yml`) corre `npm test` en cada push/PR, co
 - **Checkout invitado vs. autenticado con el mismo middleware**: `optionalAuth` deja pasar sin token (invitado) pero rechaza un token inválido/expirado, en vez de tener dos rutas distintas para el mismo flujo.
 - **Whitelist de campos en updates**: tanto el alta de usuario como las ediciones de perfil/admin pasan por `pickAllowedFields` para evitar mass-assignment (p. ej. que alguien se autoasigne `role: ADMINISTRADOR` en el signup).
 - **Error handling centralizado**: los controllers no tienen try/catch propios; `asyncHandler` envuelve cada handler async y delega al middleware de error único.
+
+## Variables de despliegue y migración
+
+- `NODE_ENV=production`: la cookie de sesión pasa a `Secure; SameSite=None` (necesario si front y API están en dominios distintos).
+- `TRUST_PROXY=1`: cantidad de proxies delante de la app; sin esto los rate limits ven la IP del proxy.
+- `FRONTEND_URL`: origen exacto del front (CORS con cookies y chequeo anti-CSRF).
+- `npm run migrate`: migra una base existente (`cretatedAt` → `createdAt`, stock booleano → numérico, `user._id` del pedido a string). Es idempotente.
+- `SEED_CONFIRM=yes npm run seed`: el seed borra toda la base; nunca corre con `NODE_ENV=production`.
+
+## Estructura
+
+```
+config/       lectura de variables de entorno
+controllers/  lógica de cada endpoint (*.controller.js)
+middlewares/  auth, roles, rate limits, errores
+models/       modelos de Mongoose (*.model.js)
+routes/       definición de rutas (*.routes.js)
+utils/        validaciones y helpers puros
+test/         unit e integration (node --test, necesita MongoDB)
+```

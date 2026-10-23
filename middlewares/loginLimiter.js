@@ -6,5 +6,6 @@ module.exports = rateLimit({
     max: 10,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.DISABLE_RATE_LIMIT === '1',
     message: { msg: 'Demasiados intentos de inicio de sesión. Probá de nuevo en unos minutos.' }
 })

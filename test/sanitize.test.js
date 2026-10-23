@@ -8,7 +8,9 @@ const {
     validateDelivery,
     computeRedemption,
     computeEarnedPoints,
-    resolvePointsRecipientId
+    resolvePointsRecipientId,
+    validateSignup,
+    validatePassword
 } = require('../utils/sanitize')
 
 test('pickAllowedFields solo copia campos permitidos', () => {
@@ -102,4 +104,26 @@ test('resolvePointsRecipientId en caja solo usa el cliente vinculado, nunca al a
 
     const vinculado = { channel: 'caja', user: { _id: 'admin1' }, linkedCustomer: { _id: 'cliente1' } }
     assert.equal(resolvePointsRecipientId(vinculado), 'cliente1')
+})
+
+test('validateSignup normaliza el email y exige strings validos', () => {
+    const ok = validateSignup({ fullName: ' Ana ', email: ' Ana@Test.COM ', password: 'secreto123' })
+    assert.deepEqual(ok, { ok: true, data: { fullName: 'Ana', email: 'ana@test.com', password: 'secreto123' } })
+
+    assert.equal(validateSignup({ fullName: 'Ana', email: { $ne: null }, password: 'secreto123' }).ok, false)
+    assert.equal(validateSignup({ fullName: '', email: 'a@b.com', password: 'secreto123' }).ok, false)
+    assert.equal(validateSignup({ fullName: 'Ana', email: 'a@b.com', password: 'corta' }).ok, false)
+})
+
+test('validatePassword rechaza menos de 8 caracteres y mas de 72 bytes', () => {
+    assert.equal(validatePassword('12345678'), null)
+    assert.ok(validatePassword('1234567'))
+    assert.ok(validatePassword('a'.repeat(73)))
+    assert.ok(validatePassword(12345678))
+})
+
+test('sanitizeQuantity tiene tope de 50', () => {
+    assert.equal(sanitizeQuantity(1e9), 50)
+    assert.equal(sanitizeQuantity('3'), 3)
+    assert.equal(sanitizeQuantity(-5), 1)
 })

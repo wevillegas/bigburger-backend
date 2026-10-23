@@ -1,13 +1,19 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
-const User = require('./schemas/user.schemas');
-const Product = require('./schemas/products.schema');
-const Order = require('./schemas/order.schema');
+const User = require('./models/user.model');
+const Product = require('./models/product.model');
+const Order = require('./models/order.model');
 
 async function seed() {
     if (!process.env.MONGODB_URI) {
         console.log('Falta MONGODB_URI en el .env');
+        process.exit(1);
+    }
+
+    // el seed borra TODO y crea admins con contraseña pública: nunca contra producción ni sin confirmación explícita
+    if (process.env.NODE_ENV === 'production' || process.env.SEED_CONFIRM !== 'yes') {
+        console.log('El seed borra toda la base. Corrélo con SEED_CONFIRM=yes (y nunca con NODE_ENV=production).');
         process.exit(1);
     }
 
@@ -128,7 +134,7 @@ async function seed() {
     const [clasica, dobleBacon, veggie, triple, bbq, clasicaCheddar, portobello, smash] = products;
 
     const userSnapshot = (u) => ({
-        _id: u._id,
+        _id: String(u._id),
         fullName: u.fullName,
         email: u.email,
         role: u.role,

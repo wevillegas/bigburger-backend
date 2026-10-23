@@ -22,5 +22,7 @@ module.exports = (err, req, res, next) => {
     }
 
     console.error(err);
-    res.status(err.status || 500).send({ message: err.message || 'Error interno del servidor' });
+    const status = err.status || 500;
+    // en un 500 el mensaje puede traer detalles internos (rutas, queries): nunca se le muestra al cliente
+    res.status(status).send({ message: status < 500 && err.message ? err.message : 'Error interno del servidor' });
 };

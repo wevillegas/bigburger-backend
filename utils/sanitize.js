@@ -8,8 +8,40 @@ function pickAllowedFields(body, allowedFields) {
 }
 
 // cantidad de un ítem de carrito: siempre un entero >= 1, ante cualquier valor raro del cliente
+// con tope: un cliente no puede pedir 1e9 unidades de un ítem
+const MAX_QUANTITY = 50
+const MAX_CART_ITEMS = 30
+// tiempo que tienen clientes e invitados para cancelar un pedido (el admin no tiene límite)
+const CANCEL_WINDOW_MINUTES = 5
+
 function sanitizeQuantity(value) {
-    return Math.max(1, parseInt(value, 10) || 1)
+    return Math.min(MAX_QUANTITY, Math.max(1, parseInt(value, 10) || 1))
+}
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+// bcrypt solo mira los primeros 72 bytes: una contraseña más larga se truncaría en silencio
+function validatePassword(password) {
+    if (typeof password !== 'string' || password.length < 8) {
+        return 'La contraseña debe tener 8 o más caracteres'
+    }
+    if (Buffer.byteLength(password) > 72) {
+        return 'La contraseña no puede superar los 72 caracteres'
+    }
+    return null
+}
+
+// registro público: tipos string, email normalizado (minúsculas, sin espacios) y contraseña válida
+function validateSignup(body) {
+    const fullName = typeof body.fullName === 'string' ? body.fullName.trim() : ''
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+    if (!fullName) return { ok: false, status: 400, message: 'Ingresá tu nombre' }
+    if (!EMAIL_REGEX.test(email)) return { ok: false, status: 400, message: 'Ingresá un email válido' }
+
+    const passwordError = validatePassword(body.password)
+    if (passwordError) return { ok: false, status: 400, message: passwordError }
+
+    return { ok: true, data: { fullName, email, password: body.password } }
 }
 
 const PAYMENT_METHODS = ['efectivo', 'transferencia', 'tarjeta']
@@ -82,6 +114,11 @@ function resolvePointsRecipientId(order) {
 }
 
 module.exports = {
+    MAX_QUANTITY,
+    MAX_CART_ITEMS,
+    CANCEL_WINDOW_MINUTES,
+    validatePassword,
+    validateSignup,
     pickAllowedFields,
     sanitizeQuantity,
     validateCajaOrder,

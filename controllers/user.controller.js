@@ -1,12 +1,12 @@
-const User = require('../schemas/user.schemas');
+const User = require('../models/user.model');
 const bcrypt = require('bcrypt');
 const salt = 10;
 const jwt = require('jsonwebtoken');
 const secret = require('../config/config').secret;
-const { pickAllowedFields } = require('../utils/sanitize');
+const { COOKIE_NAME } = require('../utils/authUser');
+const { pickAllowedFields, validatePassword, validateSignup } = require('../utils/sanitize');
 
 
-const ALLOWED_SIGNUP_FIELDS = ['fullName', 'email', 'password']
 const ALLOWED_UPDATE_FIELDS = ['fullName', 'email', 'active', 'role', 'phone', 'address']
 const ALLOWED_PROFILE_FIELDS = ['fullName', 'phone', 'address']
 
@@ -14,9 +14,10 @@ const ALLOWED_PROFILE_FIELDS = ['fullName', 'phone', 'address']
 // (si no, cualquiera podría autoasignarse ADMINISTRADOR en el signup) y queda en el default del schema.
 // el resto de los campos (maxlength, formato) los valida el schema al guardar
 async function addUser(req, res){
-    if(!req.body.password) return res.status(400).send({message:'falta la contraseña'});
+    const validation = validateSignup(req.body)
+    if (!validation.ok) return res.status(validation.status).send({message: validation.message})
 
-    const userData = pickAllowedFields(req.body, ALLOWED_SIGNUP_FIELDS)
+    const userData = validation.data
     userData.password = await bcrypt.hash(userData.password, salt);
 
     let newUser = new User(userData);
@@ -33,9 +34,12 @@ async function getUsers(req, res){
 async function getUser(req, res){
     //id que recibimos desde el endpoint
     const userId = req.query.user_id;
+    // un usuario común solo puede ver su propio perfil; el admin puede ver cualquiera
+    if (req.user.role !== 'ADMINISTRADOR' && String(userId) !== String(req.user._id)) {
+        return res.status(403).send('no tiene los permisos necesarios para ver este usuario');
+    }
     //buscamos ese Id en nuestra BD
     const user = await User.findById(userId).select('-password');
-    console.log(user)
     // si no encontramos el usuario
     if(!user) return res.status(404).send ('no se encontro el usuario que busca');
 
@@ -88,12 +92,11 @@ async function updateOwnProfile(req, res) {
 async function changeOwnPassword(req, res) {
     const { currentPassword, newPassword } = req.body
 
-    if (!currentPassword || !newPassword) {
+    if (typeof currentPassword !== 'string' || !currentPassword || !newPassword) {
         return res.status(400).send({ message: 'Ingresá tu contraseña actual y la nueva' })
     }
-    if (newPassword.length < 8) {
-        return res.status(400).send({ message: 'La nueva contraseña debe tener 8 o más caracteres' })
-    }
+    const passwordError = validatePassword(newPassword)
+    if (passwordError) return res.status(400).send({ message: passwordError })
 
     const userDB = await User.findById(req.user._id)
     if (!userDB) return res.status(404).send({ message: 'No se encontro el usuario' })
@@ -108,24 +111,37 @@ async function changeOwnPassword(req, res) {
 }
 
 //LOGIN
+// cross-site (front y API en dominios distintos) exige SameSite=None + Secure; en local, Lax alcanza
+const isProduction = process.env.NODE_ENV === 'production'
+const cookieOptions = { httpOnly: true, secure: isProduction, sameSite: isProduction ? 'none' : 'lax' }
+// hash descartable para gastar el mismo tiempo de bcrypt cuando el email no existe (evita enumerar cuentas por latencia)
+const DUMMY_HASH = bcrypt.hashSync('no-es-una-contraseña', salt)
+const INVALID_CREDENTIALS = { msg: 'Email o contraseña incorrectos' }
+
 async function login (req, res){
-    const email = req.body.email;
-    const password = req.body.password;
+    const { email, password } = req.body
 
-//checkeamos que el usuario exista y nos traemos sus datos
-    const userDB = await User.findOne({ email: req.body.email });
+    // solo strings: un objeto como {"$ne": null} en email llegaría como operador a Mongo
+    if (typeof email !== 'string' || typeof password !== 'string') {
+        return res.status(401).send(INVALID_CREDENTIALS)
+    }
 
-    if(!userDB) return res.status(404).send({ msg:'El suario no existe en nuestra BD' });
+    const userDB = await User.findOne({ email: email.trim().toLowerCase() });
 
-//comparamos password proveniente del front con el password del usuario
-    const isValidPassword = await bcrypt.compare(password, userDB.password);
-    if(!isValidPassword) return res.status(401).send({ msg:'Alguno de los datos ingresados no es correcto' });
+    // misma respuesta (y mismo costo) si el usuario no existe o la contraseña es incorrecta
+    const isValidPassword = await bcrypt.compare(password, userDB ? userDB.password : DUMMY_HASH);
+    if(!userDB || !isValidPassword) return res.status(401).send(INVALID_CREDENTIALS);
 
-//elimino del objeto user el password
+    // recién con la contraseña correcta avisamos que la cuenta está desactivada
+    if(!userDB.active) return res.status(403).send({ msg:'Tu cuenta está desactivada' });
+
     userDB.password = undefined;
 
-//generamos un token de acceso
-    const token = jwt.sign(userDB.toJSON(), secret, { expiresIn: '7d' });
+    // el token solo lleva el _id: rol y estado se consultan en la base en cada request (ver utils/authUser.js)
+    const token = jwt.sign({ _id: userDB._id }, secret, { expiresIn: '1d' });
+
+    // el navegador guarda la sesión en una cookie HttpOnly (un XSS no puede leerla); el token también va en el body para clientes de API
+    res.cookie(COOKIE_NAME, token, { ...cookieOptions, maxAge: 24 * 60 * 60 * 1000 });
 
     return res.status(200).send({
         ok: true,
@@ -136,8 +152,14 @@ async function login (req, res){
 }
 
 
+function logout (req, res){
+    res.clearCookie(COOKIE_NAME, cookieOptions);
+    return res.status(200).send({ ok: true });
+}
+
 module.exports = {
     addUser,
+    logout,
     getUsers,
     getUser,
     deleteUser,
