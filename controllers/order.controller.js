@@ -152,8 +152,8 @@ async function trackOrder(req, res){
 }
 
 async function getOrders(req, res){
-    // un usuario común solo ve sus propios pedidos, solo el admin ve todos
-    const filter = req.user.role === 'ADMINISTRADOR' ? {} : { 'user._id': req.user._id }
+    // un usuario común solo ve sus propios pedidos (más los de caja vinculados a su cuenta), solo el admin ve todos
+    const filter = req.user.role === 'ADMINISTRADOR' ? {} : { $or: [{ 'user._id': req.user._id }, { 'linkedCustomer._id': req.user._id }] }
     const ordersDB = await Order.find(filter).sort({createdAt:-1})
     res.status(200).send({ ticket: ordersDB })
 }
